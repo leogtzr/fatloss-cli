@@ -3,9 +3,6 @@ package com.fatloss.commands;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
-// import java.util.logging.Logger;
-
-// import org.apache.logging.log4j.LogManager;
 import com.fatloss.exception.GenderParsingException;
 import com.fatloss.model.*;
 import org.apache.logging.log4j.LogManager;
@@ -16,20 +13,19 @@ import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Option;
 
 @Component
-@CommandLine.Command(name = "MyRefactorCLI", mixinStandardHelpOptions = true, version = "myrefactor-cli-1.0", description = "CLI Project")
+@CommandLine.Command(name = "fatloss-cli", mixinStandardHelpOptions = true, version = "myrefactor-cli-1.0", description = "CLI Project")
 public class FatLossCommand implements Callable<Integer> {
 
     private static Logger logger = LogManager.getLogger(FatLossCommand.class);
 
     private static Pattern GENDER_PATTERN = Pattern.compile("^(m|male|f|female)$", Pattern.CASE_INSENSITIVE);
 
-    @Option(names = {"-t", "--activity"})
-    private boolean activity;
+    private static class BMRActivityOption {
+        @Option(names = {"-t", "--activity"})
+        private boolean activity;
+    }
 
-    @ArgGroup(exclusive = false)
-    private BMROptions bmrOptions;
-
-    private static class BMROptions {
+    private static class BMRGeneralOptions {
         @Option(names = {"-a", "--age"}, description = "Age", required = true)
         private int age;
 
@@ -41,12 +37,6 @@ public class FatLossCommand implements Callable<Integer> {
 
         @Option(names = {"-h", "--height"}, description = "Height in kg.", required = true)
         private double height;
-    }
-
-    private void validateGender() {
-        if (this.bmrOptions != null && !GENDER_PATTERN.matcher(this.bmrOptions.gender).matches()) {
-            throw new GenderParsingException(String.format("issues parsing %s gender", this.bmrOptions.gender));
-        }
     }
 
     private static Gender toGender(final String gender) {
@@ -76,6 +66,29 @@ public class FatLossCommand implements Callable<Integer> {
             	
             """;
 
+    private static EnergyOptions fromUserInput(final BMRGeneralOptions options) {
+        final EnergyOptions energyOptions = new EnergyOptions();
+
+        energyOptions.setAge(options.age);
+        energyOptions.setGender(toGender(options.gender));
+        energyOptions.setHeight(options.height);
+        energyOptions.setWeight(options.weight);
+
+        return energyOptions;
+    }
+
+    @ArgGroup(exclusive = false)
+    private BMRGeneralOptions bmrGeneralOptions;
+
+    @ArgGroup(exclusive = false)
+    private BMRActivityOption bmrActivityOption;
+
+    private void validateGender() {
+        if (this.bmrGeneralOptions != null && !GENDER_PATTERN.matcher(this.bmrGeneralOptions.gender).matches()) {
+            throw new GenderParsingException(String.format("issues parsing %s gender", this.bmrGeneralOptions.gender));
+        }
+    }
+
     private void printCaloriesSummary(
             final Equation equation
             , final ActivityFactor activityFactor
@@ -99,7 +112,7 @@ public class FatLossCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        if (this.activity) {
+        if (this.bmrActivityOption != null && this.bmrActivityOption.activity) {
             logger.info(ACTIVITY_FACTOR_DESCRIPTION);
 
             return 0;
@@ -107,22 +120,17 @@ public class FatLossCommand implements Callable<Integer> {
 
         this.validateGender();
 
-        if (this.bmrOptions == null) {
+        if (this.bmrGeneralOptions == null) {
             return 0;
         }
 
-        final EnergyOptions energyOptions = new EnergyOptions();
-        energyOptions.setAge(this.bmrOptions.age);
-        energyOptions.setGender(toGender(this.bmrOptions.gender));
-        energyOptions.setHeight(this.bmrOptions.height);
-        energyOptions.setWeight(this.bmrOptions.weight);
+        final EnergyOptions energyOptions = fromUserInput(this.bmrGeneralOptions);
 
         final HarrisBenedictEquation harrisBenedictEquation = new HarrisBenedictEquation(energyOptions);
         final MifflinStJeorEquation mifflinStJeorEquation = new MifflinStJeorEquation(energyOptions);
 
         Arrays.stream(ActivityFactor.values()).forEach(activityFactor -> {
             printCaloriesSummary(harrisBenedictEquation, activityFactor, "Harris-Benedict", energyOptions);
-            //System.out.println();
             printCaloriesSummary(mifflinStJeorEquation, activityFactor, "Mifflin St. Jeor", energyOptions);
             System.out.println();
         });
