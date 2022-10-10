@@ -35,7 +35,7 @@ public class FatLossCommand implements Callable<Integer> {
         @Option(names = {"-w", "--weight"}, description = "Weight in kg.", required = true)
         private double weight;
 
-        @Option(names = {"-h", "--height"}, description = "Height in kg.", required = true)
+        @Option(names = {"-h", "--height"}, description = "Height in cm.", required = true)
         private double height;
     }
 
